@@ -185,8 +185,27 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getDeployments(accountId: string, appId: string): Promise<storage.Deployment[]> {
-        return this._qquery("SELECT * FROM public.deployments WHERE app_id = $1", [appId])
-            .then(res => res.rows.map(row => ({ id: row.id, name: row.name, key: row.key, createdTime: Number(row.created_time) })));
+        return this._qquery(`
+            SELECT d.*, p.* 
+            FROM public.deployments d 
+            LEFT JOIN LATERAL (
+                SELECT * FROM public.packages 
+                WHERE deployment_id = d.id 
+                ORDER BY upload_time DESC LIMIT 1
+            ) p ON true 
+            WHERE d.app_id = $1`, [appId])
+            .then(res => res.rows.map(row => {
+                const deployment: storage.Deployment = { 
+                    id: row.id, 
+                    name: row.name, 
+                    key: row.key, 
+                    createdTime: Number(row.created_time) 
+                };
+                if (row.package_hash) {
+                    deployment.package = this._mapPackage(row);
+                }
+                return deployment;
+            }));
     }
 
     public removeDeployment(accountId: string, appId: string, deploymentId: string): Promise<void> {
