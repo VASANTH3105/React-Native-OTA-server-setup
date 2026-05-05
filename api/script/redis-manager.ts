@@ -98,24 +98,27 @@ export class RedisManager {
   private _setupMetricsClientPromise: Promise<void>;
 
   constructor() {
-    if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
-      const redisConfig = {
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT,
-        auth_pass: process.env.REDIS_KEY,
-        tls: {
-          // Note: Node defaults CA's to those trusted by Mozilla
-          rejectUnauthorized: true,
-        },
-      };
+    if (process.env.REDIS_URL || (process.env.REDIS_HOST && process.env.REDIS_PORT)) {
+      const redisConfig: any = process.env.REDIS_URL 
+        ? process.env.REDIS_URL 
+        : {
+            host: process.env.REDIS_HOST,
+            port: process.env.REDIS_PORT,
+            auth_pass: process.env.REDIS_KEY,
+            tls: {
+              rejectUnauthorized: true,
+            },
+          };
+
       this._opsClient = redis.createClient(redisConfig);
       this._metricsClient = redis.createClient(redisConfig);
+      
       this._opsClient.on("error", (err: Error) => {
-        console.error(err);
+        console.error("Redis Ops Client Error:", err);
       });
 
       this._metricsClient.on("error", (err: Error) => {
-        console.error(err);
+        console.error("Redis Metrics Client Error:", err);
       });
 
       this._promisifiedOpsClient = new PromisifiedRedisClient(this._opsClient);
@@ -124,7 +127,7 @@ export class RedisManager {
         .select(RedisManager.METRICS_DB)
         .then(() => this._promisifiedMetricsClient.set("health", "health"));
     } else {
-      console.warn("No REDIS_HOST or REDIS_PORT environment variable configured.");
+      console.warn("No REDIS_URL, REDIS_HOST, or REDIS_PORT environment variable configured.");
     }
   }
 
