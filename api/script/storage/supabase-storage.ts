@@ -171,7 +171,7 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getDeploymentInfo(deploymentKey: string): Promise<storage.DeploymentInfo> {
-        return this._qquery("SELECT id, app_id FROM deployments WHERE key = $1", [deploymentKey])
+        return this._qquery("SELECT id, app_id FROM public.deployments WHERE key = $1", [deploymentKey])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 return { appId: res.rows[0].app_id, deploymentId: res.rows[0].id };
@@ -179,30 +179,30 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getDeployments(accountId: string, appId: string): Promise<storage.Deployment[]> {
-        return this._qquery("SELECT * FROM deployments WHERE app_id = $1", [appId])
+        return this._qquery("SELECT * FROM public.deployments WHERE app_id = $1", [appId])
             .then(res => res.rows.map(row => ({ id: row.id, name: row.name, key: row.key, createdTime: Number(row.created_time) })));
     }
 
     public removeDeployment(accountId: string, appId: string, deploymentId: string): Promise<void> {
-        return this._qquery("DELETE FROM deployments WHERE id = $1 AND app_id = $2", [deploymentId, appId]).then(() => {});
+        return this._qquery("DELETE FROM public.deployments WHERE id = $1 AND app_id = $2", [deploymentId, appId]).then(() => {});
     }
 
     public updateDeployment(accountId: string, appId: string, deployment: storage.Deployment): Promise<void> {
-        return this._qquery("UPDATE deployments SET name = $1 WHERE id = $2 AND app_id = $3", [deployment.name, deployment.id, appId]).then(() => {});
+        return this._qquery("UPDATE public.deployments SET name = $1 WHERE id = $2 AND app_id = $3", [deployment.name, deployment.id, appId]).then(() => {});
     }
 
     // --- Packages ---
 
     public commitPackage(accountId: string, appId: string, deploymentId: string, appPackage: storage.Package): Promise<storage.Package> {
         return this._qquery(
-            `INSERT INTO packages (deployment_id, app_version, blob_url, description, is_disabled, is_mandatory, label, manifest_blob_url, package_hash, released_by, release_method, rollout, size, upload_time)
+            `INSERT INTO public.packages (deployment_id, app_version, blob_url, description, is_disabled, is_mandatory, label, manifest_blob_url, package_hash, released_by, release_method, rollout, size, upload_time)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
             [deploymentId, appPackage.appVersion, appPackage.blobUrl, appPackage.description, appPackage.isDisabled, appPackage.isMandatory, appPackage.label, appPackage.manifestBlobUrl, appPackage.packageHash, appPackage.releasedBy, appPackage.releaseMethod, appPackage.rollout, appPackage.size, appPackage.uploadTime || Date.now()]
         ).then(res => this._mapPackage(res.rows[0]));
     }
 
     public getPackageHistory(accountId: string, appId: string, deploymentId: string): Promise<storage.Package[]> {
-        return this._qquery("SELECT * FROM packages WHERE deployment_id = $1 ORDER BY upload_time DESC", [deploymentId])
+        return this._qquery("SELECT * FROM public.packages WHERE deployment_id = $1 ORDER BY upload_time DESC", [deploymentId])
             .then(res => res.rows.map(this._mapPackage));
     }
 
@@ -211,7 +211,7 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public clearPackageHistory(accountId: string, appId: string, deploymentId: string): Promise<void> {
-        return this._qquery("DELETE FROM packages WHERE deployment_id = $1", [deploymentId]).then(() => {});
+        return this._qquery("DELETE FROM public.packages WHERE deployment_id = $1", [deploymentId]).then(() => {});
     }
 
     public updatePackageHistory(accountId: string, appId: string, deploymentId: string, history: storage.Package[]): Promise<void> {
@@ -271,13 +271,13 @@ export class SupabaseStorage implements storage.Storage {
 
     public addAccessKey(accountId: string, accessKey: storage.AccessKey): Promise<string> {
         return this._qquery(
-            "INSERT INTO access_keys (account_id, name, friendly_name, expires, created_time, created_by, is_session) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            "INSERT INTO public.access_keys (account_id, name, friendly_name, expires, created_time, created_by, is_session) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
             [accountId, accessKey.name, accessKey.friendlyName, accessKey.expires, accessKey.createdTime || Date.now(), accessKey.createdBy, accessKey.isSession || false]
         ).then(res => res.rows[0].id);
     }
 
     public getAccessKey(accountId: string, accessKeyId: string): Promise<storage.AccessKey> {
-        return this._qquery("SELECT * FROM access_keys WHERE id = $1 AND account_id = $2", [accessKeyId, accountId])
+        return this._qquery("SELECT * FROM public.access_keys WHERE id = $1 AND account_id = $2", [accessKeyId, accountId])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 return this._mapAccessKey(res.rows[0]);
@@ -285,20 +285,20 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getAccessKeys(accountId: string): Promise<storage.AccessKey[]> {
-        return this._qquery("SELECT * FROM access_keys WHERE account_id = $1", [accountId])
+        return this._qquery("SELECT * FROM public.access_keys WHERE account_id = $1", [accountId])
             .then(res => res.rows.map(this._mapAccessKey));
     }
 
     public removeAccessKey(accountId: string, accessKeyId: string): Promise<void> {
-        return this._qquery("DELETE FROM access_keys WHERE id = $1 AND account_id = $2", [accessKeyId, accountId]).then(() => {});
+        return this._qquery("DELETE FROM public.access_keys WHERE id = $1 AND account_id = $2", [accessKeyId, accountId]).then(() => {});
     }
 
     public updateAccessKey(accountId: string, accessKey: storage.AccessKey): Promise<void> {
-        return this._qquery("UPDATE access_keys SET friendly_name = $1, expires = $2 WHERE id = $3 AND account_id = $4", [accessKey.friendlyName, accessKey.expires, accessKey.id, accountId]).then(() => {});
+        return this._qquery("UPDATE public.access_keys SET friendly_name = $1, expires = $2 WHERE id = $3 AND account_id = $4", [accessKey.friendlyName, accessKey.expires, accessKey.id, accountId]).then(() => {});
     }
 
     public dropAll(): Promise<void> {
-        return this._qquery("TRUNCATE accounts, apps, collaborators, deployments, packages, access_keys CASCADE", []).then(() => {});
+        return this._qquery("TRUNCATE public.accounts, public.apps, public.collaborators, public.deployments, public.packages, public.access_keys CASCADE", []).then(() => {});
     }
 
     // --- Helpers ---
