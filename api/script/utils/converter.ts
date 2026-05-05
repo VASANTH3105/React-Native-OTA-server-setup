@@ -133,6 +133,8 @@ export function toRestApp(storageApp: Storage.App, displayName: string, deployme
 export function toRestCollaboratorMap(storageCollaboratorMap: Storage.CollaboratorMap): CollaboratorMap {
   const collaboratorMap: CollaboratorMap = {};
 
+  if (!storageCollaboratorMap) return collaboratorMap;
+
   Object.keys(storageCollaboratorMap)
     .sort()
     .forEach(function (key: string) {
