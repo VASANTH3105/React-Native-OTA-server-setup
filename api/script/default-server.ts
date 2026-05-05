@@ -149,7 +149,7 @@ export function start(done: (err?: any, server?: express.Express, storage?: Stor
 
       if (process.env.DISABLE_MANAGEMENT !== "true") {
         if (process.env.DEBUG_DISABLE_AUTH === "true") {
-          const userId = process.env.DEBUG_USER_ID || "default";
+          const userId = process.env.DEBUG_USER_ID || "7c917e53-2459-4a73-b4dd-176798e6063c";
           storage.getAccount(userId)
             .catch(() => {
               console.log(`Creating debug user: ${userId}`);
@@ -163,7 +163,7 @@ export function start(done: (err?: any, server?: express.Express, storage?: Stor
             });
 
           app.use((req, res, next) => {
-            req.user = { id: process.env.DEBUG_USER_ID || "default" };
+            req.user = { id: process.env.DEBUG_USER_ID || "7c917e53-2459-4a73-b4dd-176798e6063c" };
             next();
           });
         }
