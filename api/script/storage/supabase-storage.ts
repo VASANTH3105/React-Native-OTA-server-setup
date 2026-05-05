@@ -1,8 +1,7 @@
 import * as q from "q";
 import * as stream from "stream";
 import { Client } from "pg";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import * as storage from "./storage";
 
 import Promise = q.Promise;
@@ -11,6 +10,7 @@ export class SupabaseStorage implements storage.Storage {
     private _db: Client;
     private _s3: S3Client;
     private _bucket: string;
+    private _publicBaseUrl: string;
 
     constructor(dbConfig: string, s3Config: { endpoint: string; region: string; accessKeyId: string; secretAccessKey: string; bucket: string }) {
         this._db = new Client({ connectionString: dbConfig });
@@ -24,6 +24,10 @@ export class SupabaseStorage implements storage.Storage {
             forcePathStyle: true,
         });
         this._bucket = s3Config.bucket;
+        // Derive the public Supabase URL from the S3 endpoint
+        // S3 endpoint: https://<ref>.supabase.co/storage/v1/s3
+        // Public base:  https://<ref>.supabase.co/storage/v1/object/public
+        this._publicBaseUrl = s3Config.endpoint.replace(/\/storage\/v1\/s3\/?$/, '') + '/storage/v1/object/public';
         this._db.connect();
     }
 
@@ -276,14 +280,23 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getBlobUrl(blobId: string): Promise<string> {
-        const command = new GetObjectCommand({
-            Bucket: this._bucket,
-            Key: blobId,
-        });
-        // Generate a signed URL that lasts for 1 hour
+        // Use permanent public Supabase URL instead of expiring presigned S3 URLs.
+        // Presigned URLs expire after 1 hour but get stored in the DB permanently,
+        // causing stale download URLs when devices check for updates later.
+        const endpoint = (this._s3.config as any).endpoint;
         return q.Promise<string>((resolve, reject) => {
-            getSignedUrl(this._s3, command, { expiresIn: 3600 })
-                .then(resolve)
+            // Resolve the endpoint (it may be a function or a string)
+            const endpointPromise = typeof endpoint === 'function' ? endpoint() : Promise.resolve(endpoint);
+            q(endpointPromise)
+                .then((resolved: any) => {
+                    // Extract the base Supabase URL from the S3 endpoint
+                    // S3 endpoint format: https://<ref>.supabase.co/storage/v1/s3
+                    // Public URL format:  https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<key>
+                    const hostname = typeof resolved === 'string' ? resolved : `${resolved.protocol}://${resolved.hostname}`;
+                    const baseUrl = hostname.replace(/\/storage\/v1\/s3\/?$/, '');
+                    const publicUrl = `${baseUrl}/storage/v1/object/public/${this._bucket}/${blobId}`;
+                    resolve(publicUrl);
+                })
                 .catch(reject);
         });
     }
