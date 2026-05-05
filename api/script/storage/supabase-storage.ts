@@ -91,19 +91,25 @@ export class SupabaseStorage implements storage.Storage {
 
     public getApps(accountId: string): Promise<storage.App[]> {
         return this._qquery(
-            "SELECT a.* FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1",
+            "SELECT a.*, c.permission FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1",
             [accountId]
-        ).then(res => res.rows.map(row => ({ id: row.id, name: row.name, createdTime: Number(row.created_time) })));
+        ).then(res => res.rows.map(row => {
+            const collabs: storage.CollaboratorMap = {};
+            collabs["owner@example.com"] = { permission: row.permission, isCurrentAccount: true };
+            return { id: row.id, name: row.name, createdTime: Number(row.created_time), collaborators: collabs };
+        }));
     }
 
     public getApp(accountId: string, appId: string): Promise<storage.App> {
         return this._qquery(
-            "SELECT a.* FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1 AND a.id = $2",
+            "SELECT a.*, c.permission FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1 AND a.id = $2",
             [accountId, appId]
         ).then(res => {
             if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
             const row = res.rows[0];
-            return { id: row.id, name: row.name, createdTime: Number(row.created_time) };
+            const collabs: storage.CollaboratorMap = {};
+            collabs["owner@example.com"] = { permission: row.permission, isCurrentAccount: true };
+            return { id: row.id, name: row.name, createdTime: Number(row.created_time), collaborators: collabs };
         });
     }
 
