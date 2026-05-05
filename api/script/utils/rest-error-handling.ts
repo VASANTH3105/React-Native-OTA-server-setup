@@ -133,11 +133,8 @@ export function sendUnknownError(res: express.Response, error: any, next: Functi
     console.log(error);
   }
 
-  if (AppInsights.isAppInsightsInstrumented()) {
-    next(error); // Log error with AppInsights.
-  } else {
-    res.sendStatus(500);
-  }
+  const stackStr = typeof error["stack"] === "string" ? error["stack"] : String(error);
+  res.status(500).send("Internal Server Error: " + stackStr);
 }
 
 function storageErrorHandler(res: express.Response, error: storageTypes.StorageError, next: Function): void {
