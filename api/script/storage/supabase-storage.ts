@@ -186,7 +186,10 @@ export class SupabaseStorage implements storage.Storage {
 
     public getDeployments(accountId: string, appId: string): Promise<storage.Deployment[]> {
         return this._qquery(`
-            SELECT d.*, p.* 
+            SELECT d.id AS d_id, d.name AS d_name, d.key AS d_key, d.created_time AS d_created_time,
+                   p.app_version, p.blob_url, p.description, p.is_disabled, p.is_mandatory, 
+                   p.label, p.manifest_blob_url, p.package_hash, p.released_by, 
+                   p.release_method, p.rollout, p.size, p.upload_time
             FROM public.deployments d 
             LEFT JOIN LATERAL (
                 SELECT * FROM public.packages 
@@ -196,10 +199,10 @@ export class SupabaseStorage implements storage.Storage {
             WHERE d.app_id = $1`, [appId])
             .then(res => res.rows.map(row => {
                 const deployment: storage.Deployment = { 
-                    id: row.id, 
-                    name: row.name, 
-                    key: row.key, 
-                    createdTime: Number(row.created_time) 
+                    id: row.d_id, 
+                    name: row.d_name, 
+                    key: row.d_key, 
+                    createdTime: Number(row.d_created_time) 
                 };
                 if (row.package_hash) {
                     deployment.package = this._mapPackage(row);
