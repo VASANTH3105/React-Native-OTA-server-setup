@@ -81,6 +81,10 @@ export class PassportAuthentication {
   }
 
   public authenticate(req: Request, res: Response, next: (err?: Error) => void): void {
+    if (req.user) {
+      return next();
+    }
+
     passport.authenticate("bearer", { session: false }, (err: any, user: any) => {
       if (err || !user) {
         if (!err || err.code === storage.ErrorCode.NotFound) {

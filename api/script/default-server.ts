@@ -5,6 +5,7 @@ import * as api from "./api";
 import { AzureStorage } from "./storage/azure-storage";
 import { fileUploadMiddleware } from "./file-upload-manager";
 import { JsonStorage } from "./storage/json-storage";
+import { SupabaseStorage } from "./storage/supabase-storage";
 import { RedisManager } from "./redis-manager";
 import { Storage } from "./storage/storage";
 import { Response } from "express";
@@ -43,6 +44,14 @@ export function start(done: (err?: any, server?: express.Express, storage?: Stor
     .then(async () => {
       if (useJsonStorage) {
         storage = new JsonStorage();
+      } else if (process.env.SUPABASE_DB_URL) {
+        storage = new SupabaseStorage(process.env.SUPABASE_DB_URL, {
+          endpoint: process.env.SUPABASE_STORAGE_ENDPOINT,
+          region: process.env.SUPABASE_STORAGE_REGION || "us-east-1",
+          accessKeyId: process.env.SUPABASE_STORAGE_KEY,
+          secretAccessKey: process.env.SUPABASE_STORAGE_SECRET,
+          bucket: process.env.SUPABASE_STORAGE_BUCKET || "codepush",
+        });
       } else if (!process.env.AZURE_KEYVAULT_ACCOUNT) {
         storage = new AzureStorage();
       } else {
@@ -140,23 +149,25 @@ export function start(done: (err?: any, server?: express.Express, storage?: Stor
 
       if (process.env.DISABLE_MANAGEMENT !== "true") {
         if (process.env.DEBUG_DISABLE_AUTH === "true") {
+          const userId = process.env.DEBUG_USER_ID || "default";
+          storage.getAccount(userId)
+            .catch(() => {
+              console.log(`Creating debug user: ${userId}`);
+              return storage.addAccount({
+                email: "debug@example.com",
+                name: "Debug User",
+                createdTime: Date.now()
+              }).then((newId) => {
+                console.log(`Debug user created with ID: ${newId}. Please set DEBUG_USER_ID=${newId} in your .env and restart for consistency.`);
+              });
+            });
+
           app.use((req, res, next) => {
-            let userId: string = "default";
-            if (process.env.DEBUG_USER_ID) {
-              userId = process.env.DEBUG_USER_ID;
-            } else {
-              console.log("No DEBUG_USER_ID environment variable configured. Using 'default' as user id");
-            }
-
-            req.user = {
-              id: userId,
-            };
-
+            req.user = { id: process.env.DEBUG_USER_ID || "default" };
             next();
           });
-        } else {
-          app.use(auth.router());
         }
+        app.use(auth.router());
         app.use(auth.authenticate, fileUploadMiddleware, api.management({ storage: storage, redisManager: redisManager }));
       } else {
         app.use(auth.legacyRouter());
