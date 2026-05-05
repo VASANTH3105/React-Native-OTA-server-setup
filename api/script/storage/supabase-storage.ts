@@ -40,13 +40,13 @@ export class SupabaseStorage implements storage.Storage {
 
     public addAccount(account: storage.Account): Promise<string> {
         return this._qquery(
-            "INSERT INTO accounts (name, email, created_time) VALUES ($1, $2, $3) RETURNING id",
+            "INSERT INTO public.accounts (name, email, created_time) VALUES ($1, $2, $3) RETURNING id",
             [account.name, account.email, account.createdTime || Date.now()]
         ).then(res => res.rows[0].id);
     }
 
     public getAccount(accountId: string): Promise<storage.Account> {
-        return this._qquery("SELECT * FROM accounts WHERE id = $1", [accountId])
+        return this._qquery("SELECT * FROM public.accounts WHERE id = $1", [accountId])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 const row = res.rows[0];
@@ -55,7 +55,7 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getAccountByEmail(email: string): Promise<storage.Account> {
-        return this._qquery("SELECT * FROM accounts WHERE email = $1", [email])
+        return this._qquery("SELECT * FROM public.accounts WHERE email = $1", [email])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 const row = res.rows[0];
@@ -64,7 +64,7 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public getAccountIdFromAccessKey(accessKey: string): Promise<string> {
-        return this._qquery("SELECT account_id FROM access_keys WHERE name = $1", [accessKey])
+        return this._qquery("SELECT account_id FROM public.access_keys WHERE name = $1", [accessKey])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 return res.rows[0].account_id;
@@ -72,14 +72,14 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public updateAccount(email: string, updates: storage.Account): Promise<void> {
-        return this._qquery("UPDATE accounts SET name = $1 WHERE email = $2", [updates.name, email]).then(() => {});
+        return this._qquery("UPDATE public.accounts SET name = $1 WHERE email = $2", [updates.name, email]).then(() => {});
     }
 
     // --- Apps ---
 
     public addApp(accountId: string, app: storage.App): Promise<storage.App> {
         return this._qquery(
-            "INSERT INTO apps (account_id, name, created_time) VALUES ($1, $2, $3) RETURNING id",
+            "INSERT INTO public.apps (account_id, name, created_time) VALUES ($1, $2, $3) RETURNING id",
             [accountId, app.name, app.createdTime || Date.now()]
         ).then(res => {
             const appId = res.rows[0].id;
@@ -91,14 +91,14 @@ export class SupabaseStorage implements storage.Storage {
 
     public getApps(accountId: string): Promise<storage.App[]> {
         return this._qquery(
-            "SELECT a.* FROM apps a JOIN collaborators c ON a.id = c.app_id WHERE c.account_id = $1",
+            "SELECT a.* FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1",
             [accountId]
         ).then(res => res.rows.map(row => ({ id: row.id, name: row.name, createdTime: Number(row.created_time) })));
     }
 
     public getApp(accountId: string, appId: string): Promise<storage.App> {
         return this._qquery(
-            "SELECT a.* FROM apps a JOIN collaborators c ON a.id = c.app_id WHERE c.account_id = $1 AND a.id = $2",
+            "SELECT a.* FROM public.apps a JOIN public.collaborators c ON a.id = c.app_id WHERE c.account_id = $1 AND a.id = $2",
             [accountId, appId]
         ).then(res => {
             if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
@@ -108,17 +108,17 @@ export class SupabaseStorage implements storage.Storage {
     }
 
     public removeApp(accountId: string, appId: string): Promise<void> {
-        return this._qquery("DELETE FROM apps WHERE id = $1 AND account_id = $2", [appId, accountId]).then(() => {});
+        return this._qquery("DELETE FROM public.apps WHERE id = $1 AND account_id = $2", [appId, accountId]).then(() => {});
     }
 
     public transferApp(accountId: string, appId: string, email: string): Promise<void> {
         return this.getAccountByEmail(email).then(newOwner => {
-            return this._qquery("UPDATE apps SET account_id = $1 WHERE id = $2 AND account_id = $3", [newOwner.id, appId, accountId]).then(() => {});
+            return this._qquery("UPDATE public.apps SET account_id = $1 WHERE id = $2 AND account_id = $3", [newOwner.id, appId, accountId]).then(() => {});
         });
     }
 
     public updateApp(accountId: string, app: storage.App): Promise<void> {
-        return this._qquery("UPDATE apps SET name = $1 WHERE id = $2 AND account_id = $3", [app.name, app.id, accountId]).then(() => {});
+        return this._qquery("UPDATE public.apps SET name = $1 WHERE id = $2 AND account_id = $3", [app.name, app.id, accountId]).then(() => {});
     }
 
     // --- Collaborators ---
@@ -127,7 +127,7 @@ export class SupabaseStorage implements storage.Storage {
         const targetAccountIdPromise = email ? this.getAccountByEmail(email).then(acc => acc.id) : q.resolve(accountId);
         return targetAccountIdPromise.then(accId => {
             return this._qquery(
-                "INSERT INTO collaborators (app_id, account_id, permission) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+                "INSERT INTO public.collaborators (app_id, account_id, permission) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
                 [appId, accId, email ? storage.Permissions.Collaborator : storage.Permissions.Owner]
             ).then(() => {});
         });
@@ -135,7 +135,7 @@ export class SupabaseStorage implements storage.Storage {
 
     public getCollaborators(accountId: string, appId: string): Promise<storage.CollaboratorMap> {
         return this._qquery(
-            "SELECT c.permission, a.email FROM collaborators c JOIN accounts a ON c.account_id = a.id WHERE c.app_id = $1",
+            "SELECT c.permission, a.email FROM public.collaborators c JOIN public.accounts a ON c.account_id = a.id WHERE c.app_id = $1",
             [appId]
         ).then(res => {
             const map: storage.CollaboratorMap = {};
@@ -148,7 +148,7 @@ export class SupabaseStorage implements storage.Storage {
 
     public removeCollaborator(accountId: string, appId: string, email: string): Promise<void> {
         return this.getAccountByEmail(email).then(acc => {
-            return this._qquery("DELETE FROM collaborators WHERE app_id = $1 AND account_id = $2", [appId, acc.id]).then(() => {});
+            return this._qquery("DELETE FROM public.collaborators WHERE app_id = $1 AND account_id = $2", [appId, acc.id]).then(() => {});
         });
     }
 
@@ -156,13 +156,13 @@ export class SupabaseStorage implements storage.Storage {
 
     public addDeployment(accountId: string, appId: string, deployment: storage.Deployment): Promise<string> {
         return this._qquery(
-            "INSERT INTO deployments (app_id, name, key, created_time) VALUES ($1, $2, $3, $4) RETURNING id",
+            "INSERT INTO public.deployments (app_id, name, key, created_time) VALUES ($1, $2, $3, $4) RETURNING id",
             [appId, deployment.name, deployment.key, deployment.createdTime || Date.now()]
         ).then(res => res.rows[0].id);
     }
 
     public getDeployment(accountId: string, appId: string, deploymentId: string): Promise<storage.Deployment> {
-        return this._qquery("SELECT * FROM deployments WHERE id = $1 AND app_id = $2", [deploymentId, appId])
+        return this._qquery("SELECT * FROM public.deployments WHERE id = $1 AND app_id = $2", [deploymentId, appId])
             .then(res => {
                 if (res.rows.length === 0) throw storage.storageError(storage.ErrorCode.NotFound);
                 const row = res.rows[0];
