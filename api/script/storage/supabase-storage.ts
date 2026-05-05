@@ -219,11 +219,14 @@ export class SupabaseStorage implements storage.Storage {
     // --- Packages ---
 
     public commitPackage(accountId: string, appId: string, deploymentId: string, appPackage: storage.Package): Promise<storage.Package> {
-        return this._qquery(
-            `INSERT INTO public.packages (deployment_id, app_version, blob_url, description, is_disabled, is_mandatory, label, manifest_blob_url, package_hash, released_by, release_method, rollout, size, upload_time)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-            [deploymentId, appPackage.appVersion, appPackage.blobUrl, appPackage.description, appPackage.isDisabled, appPackage.isMandatory, appPackage.label, appPackage.manifestBlobUrl, appPackage.packageHash, appPackage.releasedBy, appPackage.releaseMethod, appPackage.rollout, appPackage.size, appPackage.uploadTime || Date.now()]
-        ).then(res => this._mapPackage(res.rows[0]));
+        return this.getPackageHistory(accountId, appId, deploymentId).then(history => {
+            const nextLabel = "v" + (history.length + 1);
+            return this._qquery(
+                `INSERT INTO public.packages (deployment_id, app_version, blob_url, description, is_disabled, is_mandatory, label, manifest_blob_url, package_hash, released_by, release_method, rollout, size, upload_time)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+                [deploymentId, appPackage.appVersion, appPackage.blobUrl, appPackage.description, appPackage.isDisabled, appPackage.isMandatory, nextLabel, appPackage.manifestBlobUrl, appPackage.packageHash, appPackage.releasedBy, appPackage.releaseMethod, appPackage.rollout, appPackage.size, appPackage.uploadTime || Date.now()]
+            ).then(res => this._mapPackage(res.rows[0]));
+        });
     }
 
     public getPackageHistory(accountId: string, appId: string, deploymentId: string): Promise<storage.Package[]> {
