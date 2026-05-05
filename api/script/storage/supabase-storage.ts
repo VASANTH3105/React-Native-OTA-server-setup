@@ -283,22 +283,7 @@ export class SupabaseStorage implements storage.Storage {
         // Use permanent public Supabase URL instead of expiring presigned S3 URLs.
         // Presigned URLs expire after 1 hour but get stored in the DB permanently,
         // causing stale download URLs when devices check for updates later.
-        const endpoint = (this._s3.config as any).endpoint;
-        return q.Promise<string>((resolve, reject) => {
-            // Resolve the endpoint (it may be a function or a string)
-            const endpointPromise = typeof endpoint === 'function' ? endpoint() : Promise.resolve(endpoint);
-            q(endpointPromise)
-                .then((resolved: any) => {
-                    // Extract the base Supabase URL from the S3 endpoint
-                    // S3 endpoint format: https://<ref>.supabase.co/storage/v1/s3
-                    // Public URL format:  https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<key>
-                    const hostname = typeof resolved === 'string' ? resolved : `${resolved.protocol}://${resolved.hostname}`;
-                    const baseUrl = hostname.replace(/\/storage\/v1\/s3\/?$/, '');
-                    const publicUrl = `${baseUrl}/storage/v1/object/public/${this._bucket}/${blobId}`;
-                    resolve(publicUrl);
-                })
-                .catch(reject);
-        });
+        return q.resolve(`${this._publicBaseUrl}/${this._bucket}/${blobId}`);
     }
 
     public removeBlob(blobId: string): Promise<void> {
